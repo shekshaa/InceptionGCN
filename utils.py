@@ -31,7 +31,7 @@ def one_hot_to_class(one_hot_labels):
     num_rows, num_class = one_hot_labels.shape
     class_labels = np.zeros(shape=(num_rows,))
     for i in range(num_rows):
-        class_labels[i] = np.argmax(one_hot_labels[i]) + 1
+        class_labels[i] = np.argmax(one_hot_labels[i, :])
     return class_labels
 
 
@@ -86,20 +86,20 @@ def load_citation_data(dataset_str):
     labels = np.vstack((ally, ty))
     labels[test_idx_reorder, :] = labels[test_idx_range, :]
 
-    idx_test = test_idx_range.tolist()
-    idx_train = range(len(y))
-    idx_val = range(len(y), len(y) + 500)
-
-    train_mask = sample_mask(idx_train, labels.shape[0])
-    val_mask = sample_mask(idx_val, labels.shape[0])
-    test_mask = sample_mask(idx_test, labels.shape[0])
-
-    y_train = np.zeros(labels.shape)
-    y_val = np.zeros(labels.shape)
-    y_test = np.zeros(labels.shape)
-    y_train[train_mask, :] = labels[train_mask, :]
-    y_val[val_mask, :] = labels[val_mask, :]
-    y_test[test_mask, :] = labels[test_mask, :]
+    # idx_test = test_idx_range.tolist()
+    # idx_train = range(len(y))
+    # idx_val = range(len(y), len(y) + 500)
+    #
+    # train_mask = sample_mask(idx_train, labels.shape[0])
+    # val_mask = sample_mask(idx_val, labels.shape[0])
+    # test_mask = sample_mask(idx_test, labels.shape[0])
+    #
+    # y_train = np.zeros(labels.shape)
+    # y_val = np.zeros(labels.shape)
+    # y_test = np.zeros(labels.shape)
+    # y_train[train_mask, :] = labels[train_mask, :]
+    # y_val[val_mask, :] = labels[val_mask, :]
+    # y_test[test_mask, :] = labels[test_mask, :]
 
     class_labels = one_hot_to_class(labels)
     # return adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, labels, class_labels
