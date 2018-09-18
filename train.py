@@ -21,7 +21,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('adj_type', 'age', 'Adjacency matrix creation')
 
 # 'cora', 'citeseer', 'pubmed', 'tadpole' # Please don't work with citation networks!!
-flags.DEFINE_string('dataset', 'tadpole', 'Dataset string.')
+flags.DEFINE_string('dataset', 'cora', 'Dataset string.')
 
 # 'gcn(re-parametrization trick)', 'gcn_cheby(simple_gcn)', 'dense', 'res_gcn_cheby(our model)'
 flags.DEFINE_string('model', 'gcn_cheby', 'Model string.')
@@ -43,13 +43,28 @@ if FLAGS.dataset == 'tadpole':
     # node weights used for weighted loss
     adj, features, all_labels, one_hot_labels, node_weights, dense_features = load_tadpole_data(FLAGS.adj_type)
 
-# else:
+else:
 # adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
-# adj, features, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
-# dense_features = features
-# node_weights = np.ones((dense_features.shape[0],))
-# Some preprocessing
-# features = preprocess_features(features)
+    adj, features, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
+    dense_features = features
+    node_weights = np.ones((dense_features.shape[0],))
+    # Some preprocessing
+    features = preprocess_features(features)
+
+
+# creating placeholders and support based on number of supports fed to network
+def create_support_placeholder(num_supports):
+    # num_supports = locality_upper_bound + 1
+    support = chebyshev_polynomials(adj, num_supports - 1)
+    placeholders = {
+        'support': [tf.sparse_placeholder(tf.float32, name='support_{}'.format(i)) for i in range(num_supports)],
+        'features': tf.sparse_placeholder(tf.float32, shape=tf.constant(features[2], dtype=tf.int64)),
+        'labels': tf.placeholder(tf.float32, shape=(None, one_hot_labels.shape[1])),
+        'labels_mask': tf.placeholder(tf.float32),
+        'dropout': tf.placeholder_with_default(0., shape=()),
+        'num_features_nonzero': tf.placeholder(tf.int32)  # helper variable for sparse dropout
+    }
+    return support, placeholders
 
 
 # Table experiment for simple gcn on different localities
@@ -58,38 +73,32 @@ def table_experiment(locality_upper_bound):
     with open('Average_accuracy.csv', mode='w') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(['K1', 'K2', 'train_avg_acc', 'val_avg_acc', 'test_avg_acc', 'test_avg_auc'])
+    support, placeholders = create_support_placeholder(locality_upper_bound + 1)
     for l1 in range(1, locality_upper_bound + 1):
         for l2 in range(1, locality_upper_bound + 1):
-            train_k_fold('gcn_cheby', l1, l2)
+            train_k_fold('gcn_cheby', support, placeholders, l1, l2)
 
 
-def train_k_fold(model_name, locality1=1, locality2=2, locality_sizes=None):
+def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, locality_sizes=None):
     """model_name: name of model (using option defined for FLAGS.model in top
        locality1 & locality2: values of k for 2 GC blocks of gcn_cheby(simple gcn model)
        locality_sizes: locality sizes included in each GC block for res_gcn_cheby(our proposed model)
     """
-    # Define supports and number of them
-    if model_name == 'res_gcn_cheby':
-        num_supports = np.max(locality_sizes) + 1
-        support = chebyshev_polynomials(adj, num_supports - 1)
-    elif model_name == 'gcn_cheby':
-        num_supports = max(locality1, locality2) + 1
-        support = chebyshev_polynomials(adj, num_supports - 1)
-    elif model_name == 'gcn':
-        num_supports = 1
-        support = [preprocess_adj(adj)]
-    else:
-        num_supports = 1
-
+    # # Define supports and number of them
+    # if model_name == 'res_gcn_cheby':
+    #     num_supports = np.max(locality_sizes) + 1
+    #     support = chebyshev_polynomials(adj, num_supports - 1)
+    # elif model_name == 'gcn_cheby':
+    #
+    # elif model_name == 'gcn':
+    #     num_supports = 1
+    #     support = [preprocess_adj(adj)]
+    # else:
+    #     num_supports = 1
+    #
+    # print(num_supports)
     # Define placeholders
-    placeholders = {
-        'support': [tf.sparse_placeholder(tf.float32) for _ in range(num_supports)],
-        'features': tf.sparse_placeholder(tf.float32, shape=tf.constant(features[2], dtype=tf.int64)),
-        'labels': tf.placeholder(tf.float32, shape=(None, one_hot_labels.shape[1])),
-        'labels_mask': tf.placeholder(tf.float32),
-        'dropout': tf.placeholder_with_default(0., shape=()),
-        'num_features_nonzero': tf.placeholder(tf.int32)  # helper variable for sparse dropout
-    }
+
 
     # Create model
     logging = False
@@ -334,3 +343,8 @@ def train_k_fold(model_name, locality1=1, locality2=2, locality_sizes=None):
             writer = csv.writer(csv_file)
             writer.writerow([locality1, locality2, train_avg_acc, val_avg_acc, test_avg_acc, test_avg_auc])
 
+
+locality_sizes = [2, 5]
+num_supports = np.max(locality_sizes) + 1
+support, placeholders = create_support_placeholder(num_supports)
+train_k_fold('res_gcn_cheby', support, placeholders, locality_sizes=locality_sizes)
