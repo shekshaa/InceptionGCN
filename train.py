@@ -26,14 +26,14 @@ flags.DEFINE_string('dataset', 'cora', 'Dataset string.')
 # 'gcn(re-parametrization trick)', 'gcn_cheby(simple_gcn)', 'dense', 'res_gcn_cheby(our model)'
 flags.DEFINE_string('model', 'res_gcn_cheby', 'Model string.')
 
-flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_float('learning_rate', 0.005, 'Initial learning rate.')
 flags.DEFINE_integer('epochs', 300, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 110, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 50, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('hidden3', 25, 'Number of units in hidden layer 3.')
-flags.DEFINE_float('dropout', 0., 'Dropout rate (1 - keep probability).')
-flags.DEFINE_float('weight_decay', 1e-4, 'Weight for L2 loss on embedding matrix.')
-flags.DEFINE_integer('early_stopping', 25, 'Tolerance for early stopping (# of epochs).')
+flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
+flags.DEFINE_float('weight_decay', 5e-4, 'Weight for L2 loss on embedding matrix.')
+flags.DEFINE_integer('early_stopping', 20, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_bool('featureless', False, 'featureless')
 
 
@@ -182,7 +182,7 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
         print('train class distribution:', train_class)
         val_class = [val_labels.tolist().count(i) for i in range(1, num_class + 1)]
         print('val class distribution:', val_class)
-        test_class = [test_labels.tolist().count(i) for i in range(1, num_class + 1)]
+        test_class = [test_labels.tolist().count(i) / np.sum(test_mask) for i in range(1, num_class + 1)]
         print('test class distribution:', test_class)
 
         # saving initial boolean masks for later use
@@ -280,7 +280,7 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
         model_outputs = sess.run(model.outputs, feed_dict=feed_dict)
         prediction = np.argmax(model_outputs, axis=1)[init_test_mask]
         confusion_mat = confusion_matrix(y_true=np.asarray(all_labels)[init_test_mask], y_pred=prediction,
-                                         labels=[0, 1, 2])
+                                         labels=[i for i in range(num_class)])
         test_confusion_matrices.append(confusion_mat)
         print('Confusion matrix of test set:')
         print(confusion_mat)
@@ -338,7 +338,7 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
             writer.writerow([locality1, locality2, train_avg_acc, val_avg_acc, test_avg_acc, test_avg_auc])
 
 
-locality_sizes = [2, 5]
+locality_sizes = [2, 4]
 num_supports = np.max(locality_sizes) + 1
 support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
 train_k_fold(FLAGS.model, support, placeholders, locality_sizes=locality_sizes)
