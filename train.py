@@ -24,7 +24,7 @@ flags.DEFINE_string('adj_type', 'age', 'Adjacency matrix creation')
 flags.DEFINE_string('dataset', 'cora', 'Dataset string.')
 
 # 'gcn(re-parametrization trick)', 'gcn_cheby(simple_gcn)', 'dense', 'res_gcn_cheby(our model)'
-flags.DEFINE_string('model', 'gcn_cheby', 'Model string.')
+flags.DEFINE_string('model', 'res_gcn_cheby', 'Model string.')
 
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('epochs', 300, 'Number of epochs to train.')
@@ -32,7 +32,7 @@ flags.DEFINE_integer('hidden1', 110, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 50, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('hidden3', 25, 'Number of units in hidden layer 3.')
 flags.DEFINE_float('dropout', 0., 'Dropout rate (1 - keep probability).')
-flags.DEFINE_float('weight_decay', 0., 'Weight for L2 loss on embedding matrix.')
+flags.DEFINE_float('weight_decay', 1e-4, 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 25, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_bool('featureless', False, 'featureless')
 
@@ -42,6 +42,7 @@ if FLAGS.dataset == 'tadpole':
     # features is in sparse format
     # node weights used for weighted loss
     adj, features, all_labels, one_hot_labels, node_weights, dense_features = load_tadpole_data(FLAGS.adj_type)
+    num_class = 3
 
 else:
 # adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
@@ -50,12 +51,21 @@ else:
     node_weights = np.ones((dense_features.shape[0],))
     # Some preprocessing
     features = preprocess_features(features)
+    if FLAGS.dataset == 'cora':
+        num_class = 7
+    elif FLAGS.dataset == 'citeseer':
+        num_class = 6
+    else:
+        num_class = 3
 
 
 # creating placeholders and support based on number of supports fed to network
-def create_support_placeholder(num_supports):
-    # num_supports = locality_upper_bound + 1
-    support = chebyshev_polynomials(adj, num_supports - 1)
+def create_support_placeholder(model_name, num_supports):
+    if model_name == 'gcn':
+        support = [preprocess_adj(adj)]
+    else:
+        support = chebyshev_polynomials(adj, num_supports - 1)
+
     placeholders = {
         'support': [tf.sparse_placeholder(tf.float32, name='support_{}'.format(i)) for i in range(num_supports)],
         'features': tf.sparse_placeholder(tf.float32, shape=tf.constant(features[2], dtype=tf.int64)),
@@ -73,7 +83,7 @@ def table_experiment(locality_upper_bound):
     with open('Average_accuracy.csv', mode='w') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(['K1', 'K2', 'train_avg_acc', 'val_avg_acc', 'test_avg_acc', 'test_avg_auc'])
-    support, placeholders = create_support_placeholder(locality_upper_bound + 1)
+    support, placeholders = create_support_placeholder('gcn_cheby', locality_upper_bound + 1)
     for l1 in range(1, locality_upper_bound + 1):
         for l2 in range(1, locality_upper_bound + 1):
             train_k_fold('gcn_cheby', support, placeholders, l1, l2)
@@ -84,22 +94,6 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
        locality1 & locality2: values of k for 2 GC blocks of gcn_cheby(simple gcn model)
        locality_sizes: locality sizes included in each GC block for res_gcn_cheby(our proposed model)
     """
-    # # Define supports and number of them
-    # if model_name == 'res_gcn_cheby':
-    #     num_supports = np.max(locality_sizes) + 1
-    #     support = chebyshev_polynomials(adj, num_supports - 1)
-    # elif model_name == 'gcn_cheby':
-    #
-    # elif model_name == 'gcn':
-    #     num_supports = 1
-    #     support = [preprocess_adj(adj)]
-    # else:
-    #     num_supports = 1
-    #
-    # print(num_supports)
-    # Define placeholders
-
-
     # Create model
     logging = False
     if model_name == 'res_gcn_cheby':
@@ -184,11 +178,11 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
         test_labels = test_mask * tmp_labels
 
         # distribution of train, val and test set over classes
-        train_class = [train_labels.tolist().count(i) for i in range(1, 4)]
+        train_class = [train_labels.tolist().count(i) for i in range(1, num_class + 1)]
         print('train class distribution:', train_class)
-        val_class = [val_labels.tolist().count(i) for i in range(1, 4)]
+        val_class = [val_labels.tolist().count(i) for i in range(1, num_class + 1)]
         print('val class distribution:', val_class)
-        test_class = [test_labels.tolist().count(i) for i in range(1, 4)]
+        test_class = [test_labels.tolist().count(i) for i in range(1, num_class + 1)]
         print('test class distribution:', test_class)
 
         # saving initial boolean masks for later use
@@ -346,5 +340,5 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
 
 locality_sizes = [2, 5]
 num_supports = np.max(locality_sizes) + 1
-support, placeholders = create_support_placeholder(num_supports)
-train_k_fold('res_gcn_cheby', support, placeholders, locality_sizes=locality_sizes)
+support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
+train_k_fold(FLAGS.model, support, placeholders, locality_sizes=locality_sizes)
