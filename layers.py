@@ -141,7 +141,7 @@ class Dense(Layer):
 
 class GraphConvolution(Layer):
     """Graph convolution layer by chebyshev polynomials"""
-    def __init__(self, input_dim, output_dim, placeholders, is_simple=True, is_skip_connection=False, dropout=0.,
+    def __init__(self, input_dim, output_dim, placeholders, is_simple=False, is_skip_connection=False, dropout=0.,
                  sparse_inputs=False, act=tf.nn.relu, bias=False, locality=None, **kwargs):
         super(GraphConvolution, self).__init__(**kwargs)
 
@@ -161,7 +161,7 @@ class GraphConvolution(Layer):
         self.num_features_nonzero = placeholders['num_features_nonzero']
 
         with tf.variable_scope(self.name + '_vars'):
-            if self.is_simple:
+            if not self.is_simple:
                 tmp = len(self.support)
             else:
                 tmp = self.locality
@@ -186,7 +186,7 @@ class GraphConvolution(Layer):
 
         # convolve
         supports = list()
-        if self.is_simple:
+        if not self.is_simple:
             tmp = len(self.support)
         else:
             tmp = self.locality
