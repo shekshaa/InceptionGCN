@@ -345,12 +345,12 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
 # simple gcn example
 # locality1 = 5
 # locality2 = 2
-# num_supports = max(locality1, locality2) - 1
+# num_supports = max(locality1, locality2) + 1
 # support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
 # train_k_fold(FLAGS.model, support, placeholders, locality=2, locality=5)
 
 # ResGCN example
 # locality_sizes = [2, 5]
-# num_supports = np.max(locality_sizes) - 1
+# num_supports = np.max(locality_sizes) + 1
 # support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
 # train_k_fold(FLAGS.model, support, placeholders, locality_sizes=locality_sizes)
