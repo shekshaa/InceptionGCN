@@ -21,19 +21,19 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('adj_type', 'age', 'Adjacency matrix creation')
 
 # 'cora', 'citeseer', 'pubmed', 'tadpole' # Please don't work with citation networks!!
-flags.DEFINE_string('dataset', 'cora', 'Dataset string.')
+flags.DEFINE_string('dataset', 'tadpole', 'Dataset string.')
 
 # 'gcn(re-parametrization trick)', 'gcn_cheby(simple_gcn)', 'dense', 'res_gcn_cheby(our model)'
-flags.DEFINE_string('model', 'res_gcn_cheby', 'Model string.')
+flags.DEFINE_string('model', 'gcn', 'Model string.')
 
-flags.DEFINE_float('learning_rate', 0.005, 'Initial learning rate.')
+flags.DEFINE_float('learning_rate', 0.0005, 'Initial learning rate.')
 flags.DEFINE_integer('epochs', 300, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 110, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 50, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('hidden3', 25, 'Number of units in hidden layer 3.')
-flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
-flags.DEFINE_float('weight_decay', 5e-4, 'Weight for L2 loss on embedding matrix.')
-flags.DEFINE_integer('early_stopping', 20, 'Tolerance for early stopping (# of epochs).')
+flags.DEFINE_float('dropout', 0., 'Dropout rate (1 - keep probability).')
+flags.DEFINE_float('weight_decay', 0., 'Weight for L2 loss on embedding matrix.')
+flags.DEFINE_integer('early_stopping', 25, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_bool('featureless', False, 'featureless')
 
 
@@ -65,7 +65,6 @@ def create_support_placeholder(model_name, num_supports):
         support = [preprocess_adj(adj)]
     else:
         support = chebyshev_polynomials(adj, num_supports - 1)
-
     placeholders = {
         'support': [tf.sparse_placeholder(tf.float32, name='support_{}'.format(i)) for i in range(num_supports)],
         'features': tf.sparse_placeholder(tf.float32, shape=tf.constant(features[2], dtype=tf.int64)),
@@ -115,7 +114,7 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
         model = MLP(placeholders, input_dim=features[2][1], logging=logging)
 
     else:
-        raise ValueError('Invalid argument for model: ' + str(FLAGS.model))
+        raise ValueError('Invalid argument for model: ' + str(model_name))
 
     # Define model evaluation function
     def evaluate(features, support, labels, mask, placeholders):
@@ -338,7 +337,20 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
             writer.writerow([locality1, locality2, train_avg_acc, val_avg_acc, test_avg_acc, test_avg_auc])
 
 
-locality_sizes = [2, 4]
-num_supports = np.max(locality_sizes) + 1
-support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
-train_k_fold(FLAGS.model, support, placeholders, locality_sizes=locality_sizes)
+# gcn example
+# num_supports = 1
+# support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
+# train_k_fold(FLAGS.model, support, placeholders)
+
+# simple gcn example
+# locality1 = 5
+# locality2 = 2
+# num_supports = max(locality1, locality2) - 1
+# support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
+# train_k_fold(FLAGS.model, support, placeholders, locality=2, locality=5)
+
+# ResGCN example
+# locality_sizes = [2, 5]
+# num_supports = np.max(locality_sizes) - 1
+# support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
+# train_k_fold(FLAGS.model, support, placeholders, locality_sizes=locality_sizes)
