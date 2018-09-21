@@ -148,7 +148,7 @@ class MLP(Model):
 
 
 class GCN(Model):
-    def __init__(self, placeholders, input_dim, is_simple=True, is_skip_connection=False, locality=None, **kwargs):
+    def __init__(self, placeholders, input_dim, is_simple=False, is_skip_connection=False, locality=None, **kwargs):
         super(GCN, self).__init__(**kwargs)
 
         self.inputs = placeholders['features']
