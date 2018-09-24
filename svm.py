@@ -73,7 +73,7 @@ for k in range(num_folds):
     test_features = dense_features[test_mask, :]
     test_labels = np.asarray(all_labels)[test_mask]
 
-    svc2 = svm.SVC(kernel='linear').fit(train_features, train_labels)
+    svc2 = svm.SVC(kernel='linear',probability=True).fit(train_features, train_labels)
     train_pred = svc2.predict(train_features)
     val_pred = svc2.predict(val_features)
     test_pred = svc2.predict(test_features)
