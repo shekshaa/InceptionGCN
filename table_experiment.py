@@ -1,7 +1,7 @@
 from train import *
 
 # Table experiment for simple gcn on different localities
-locality_upper_bound = 7
+locality_upper_bound = 6
 adj, features, all_labels, one_hot_labels, node_weights, dense_features, num_class = load_data()
 support, placeholders = create_support_placeholder('gcn_cheby', locality_upper_bound + 1, adj, features,
                                                    one_hot_labels)
@@ -12,8 +12,9 @@ with open('Average_accuracy.csv', mode='w') as csv_file:
                      'test_std_acc'])
     for l1 in range(1, locality_upper_bound + 1):
         for l2 in range(1, locality_upper_bound + 1):
-            train_accuracy, val_accuracy, test_accuracy = train_k_fold('gcn_cheby', support, placeholders,
-                                                                                      l1, l2)
+            train_accuracy, val_accuracy, test_accuracy = train_k_fold('gcn_cheby', support, placeholders, features,
+                                                                       all_labels, one_hot_labels, node_weights,
+                                                                       dense_features, num_class, l1, l2)
             train_avg_acc = np.mean(train_accuracy)
             val_avg_acc = np.mean(val_accuracy)
             test_avg_acc = np.mean(test_accuracy)
@@ -28,4 +29,4 @@ with open('Average_accuracy.csv', mode='w') as csv_file:
             print('test_avg: ', test_avg_acc, '±', test_std_acc)
             print()
             print()
-            writer.writerow([l1, l2, train_avg_acc, val_avg_acc, test_avg_acc])
+            writer.writerow([l1, l2, train_avg_acc, val_avg_acc, test_avg_acc, train_std_acc, val_std_acc, test_std_acc])

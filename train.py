@@ -74,12 +74,13 @@ def create_support_placeholder(model_name, num_supports, adj, features, one_hot_
     return support, placeholders
 
 
-def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, locality_sizes=None):
+def train_k_fold(model_name, support, placeholders, features, all_labels, one_hot_labels, node_weights, dense_features,
+                 num_class, locality1=1, locality2=2, locality_sizes=None):
     """model_name: name of model (using option defined for FLAGS.model in top
        locality1 & locality2: values of k for 2 GC blocks of gcn_cheby(simple gcn model)
        locality_sizes: locality sizes included in each GC block for res_gcn_cheby(our proposed model)
     """
-    adj, features, all_labels, one_hot_labels, node_weights, dense_features, num_class = load_data()
+    # adj, features, all_labels, one_hot_labels, node_weights, dense_features, num_class = load_data()
     # Create model
     logging = False
     if model_name == 'res_gcn_cheby':
@@ -272,9 +273,9 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
         print(confusion_mat)
 
         # Roc auc score on test set
-        auc = roc_auc_score(y_true=one_hot_labels[init_test_mask, :], y_score=model_outputs[init_test_mask, :])
-        test_auc.append(auc)
-        print('Test auc: {:.4f}'.format(auc))
+        # auc = roc_auc_score(y_true=one_hot_labels[init_test_mask, :], y_score=model_outputs[init_test_mask, :])
+        # test_auc.append(auc)
+        # print('Test auc: {:.4f}'.format(auc))
         print('--------')
 
         # Closing writers
