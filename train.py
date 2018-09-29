@@ -304,10 +304,15 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
     train_avg_acc = np.mean(train_accuracy)
     val_avg_acc = np.mean(val_accuracy)
     test_avg_acc = np.mean(test_accuracy)
+
+    train_std_acc = np.std(train_accuracy)
+    val_std_acc = np.std(val_accuracy)
+    test_std_acc = np.std(test_accuracy)
+
     print('Average accuracy on {} folds'.format(num_folds))
-    print('train_avg: ', train_avg_acc, '±', np.std(train_accuracy))
-    print('val_avg: ', val_avg_acc, '±', np.std(val_accuracy))
-    print('test_avg: ', test_avg_acc, '±', np.std(test_accuracy))
+    print('train_avg: ', train_avg_acc, '±', train_std_acc)
+    print('val_avg: ', val_avg_acc, '±', val_std_acc)
+    print('test_avg: ', test_avg_acc, '±', test_std_acc)
     print()
 
     print('Test auc on {} folds'.format(num_folds))
@@ -323,6 +328,7 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
             writer = csv.writer(csv_file)
             writer.writerow([locality1, locality2, train_avg_acc, val_avg_acc, test_avg_acc, test_avg_auc])
 
+    return train_avg_acc, train_std_acc, val_avg_acc, val_std_acc, test_avg_acc, test_std_acc
 
 # gcn example
 # num_supports = 1
