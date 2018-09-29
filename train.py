@@ -301,34 +301,15 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
     print('test', test_accuracy)
     print()
 
-    train_avg_acc = np.mean(train_accuracy)
-    val_avg_acc = np.mean(val_accuracy)
-    test_avg_acc = np.mean(test_accuracy)
+    # print('Test auc on {} folds'.format(num_folds))
+    # print(test_auc)
+    # print()
+    #
+    # test_avg_auc = np.mean(test_auc)
+    # print('Average test auc on {} folds'.format(num_folds))
+    # print(test_avg_auc, '±', np.std(test_auc))
 
-    train_std_acc = np.std(train_accuracy)
-    val_std_acc = np.std(val_accuracy)
-    test_std_acc = np.std(test_accuracy)
-
-    print('Average accuracy on {} folds'.format(num_folds))
-    print('train_avg: ', train_avg_acc, '±', train_std_acc)
-    print('val_avg: ', val_avg_acc, '±', val_std_acc)
-    print('test_avg: ', test_avg_acc, '±', test_std_acc)
-    print()
-
-    print('Test auc on {} folds'.format(num_folds))
-    print(test_auc)
-    print()
-
-    test_avg_auc = np.mean(test_auc)
-    print('Average test auc on {} folds'.format(num_folds))
-    print(test_avg_auc, '±', np.std(test_auc))
-
-    if model_name == 'gcn_cheby':
-        with open('Average_accuracy.csv', mode='a') as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerow([locality1, locality2, train_avg_acc, val_avg_acc, test_avg_acc, test_avg_auc])
-
-    return train_avg_acc, train_std_acc, val_avg_acc, val_std_acc, test_avg_acc, test_std_acc
+    return train_accuracy, val_accuracy, test_accuracy
 
 # gcn example
 # num_supports = 1
