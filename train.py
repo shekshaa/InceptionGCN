@@ -19,14 +19,11 @@ np.random.seed(seed)
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_string('adj_type', 'age', 'Adjacency matrix creation')
-
 # 'cora', 'citeseer', 'pubmed', 'tadpole' # Please don't work with citation networks!!
 flags.DEFINE_string('dataset', 'tadpole', 'Dataset string.')
-
 # 'gcn(re-parametrization trick)', 'gcn_cheby(simple_gcn)', 'dense', 'res_gcn_cheby(our model)'
-flags.DEFINE_string('model', 'gcn', 'Model string.')
-
-flags.DEFINE_float('learning_rate', 0.0005, 'Initial learning rate.')
+flags.DEFINE_string('model', 'res_gcn_cheby', 'Model string.')
+flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('epochs', 300, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 110, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 50, 'Number of units in hidden layer 2.')
@@ -38,29 +35,30 @@ flags.DEFINE_bool('featureless', False, 'featureless')
 
 
 # Loading data
-if FLAGS.dataset == 'tadpole':
-    # features is in sparse format
-    # node weights used for weighted loss
-    adj, features, all_labels, one_hot_labels, node_weights, dense_features = load_tadpole_data(FLAGS.adj_type)
-    num_class = 3
-
-else:
-# adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
-    adj, features, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
-    dense_features = features
-    node_weights = np.ones((dense_features.shape[0],))
-    # Some preprocessing
-    features = preprocess_features(features)
-    if FLAGS.dataset == 'cora':
-        num_class = 7
-    elif FLAGS.dataset == 'citeseer':
-        num_class = 6
-    else:
+def load_data():
+    if FLAGS.dataset == 'tadpole':
+        # features is in sparse format
+        # node weights used for weighted loss
+        adj, features, all_labels, one_hot_labels, node_weights, dense_features = load_tadpole_data(FLAGS.adj_type)
         num_class = 3
+    else:
+    # adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
+        adj, features, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
+        dense_features = features
+        node_weights = np.ones((dense_features.shape[0],))
+        # Some preprocessing
+        features = preprocess_features(features)
+        if FLAGS.dataset == 'cora':
+            num_class = 7
+        elif FLAGS.dataset == 'citeseer':
+            num_class = 6
+        else:
+            num_class = 3
+    return adj, features, all_labels, one_hot_labels, node_weights, dense_features, num_class
 
 
 # creating placeholders and support based on number of supports fed to network
-def create_support_placeholder(model_name, num_supports):
+def create_support_placeholder(model_name, num_supports, adj, features, one_hot_labels):
     if model_name == 'gcn':
         support = [preprocess_adj(adj)]
     else:
@@ -76,23 +74,12 @@ def create_support_placeholder(model_name, num_supports):
     return support, placeholders
 
 
-# Table experiment for simple gcn on different localities
-def table_experiment(locality_upper_bound):
-    """locality_upper_bound: up to what degree looking for degree size of each layer"""
-    with open('Average_accuracy.csv', mode='w') as csv_file:
-        writer = csv.writer(csv_file)
-        writer.writerow(['K1', 'K2', 'train_avg_acc', 'val_avg_acc', 'test_avg_acc', 'test_avg_auc'])
-    support, placeholders = create_support_placeholder('gcn_cheby', locality_upper_bound + 1)
-    for l1 in range(1, locality_upper_bound + 1):
-        for l2 in range(1, locality_upper_bound + 1):
-            train_k_fold('gcn_cheby', support, placeholders, l1, l2)
-
-
 def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, locality_sizes=None):
     """model_name: name of model (using option defined for FLAGS.model in top
        locality1 & locality2: values of k for 2 GC blocks of gcn_cheby(simple gcn model)
        locality_sizes: locality sizes included in each GC block for res_gcn_cheby(our proposed model)
     """
+    adj, features, all_labels, one_hot_labels, node_weights, dense_features, num_class = load_data()
     # Create model
     logging = False
     if model_name == 'res_gcn_cheby':
@@ -287,7 +274,7 @@ def train_k_fold(model_name, support, placeholders, locality1=1, locality2=2, lo
         # Roc auc score on test set
         auc = roc_auc_score(y_true=one_hot_labels[init_test_mask, :], y_score=model_outputs[init_test_mask, :])
         test_auc.append(auc)
-        print('Test auc:', auc)
+        print('Test auc: {:.4f}'.format(auc))
         print('--------')
 
         # Closing writers
