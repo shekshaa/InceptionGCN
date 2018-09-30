@@ -330,35 +330,35 @@ class ResGCN(Model):
                                                is_skip_connection=self.is_skip_connection))
 
         # changing input dim and output dim of layer 2 in different cases of having skip connections and pooling types
-        if self.is_skip_connection:
-            if not self.is_pool:
-                l3_input_size = len(self.locality_sizes) * FLAGS.hidden2 + l2_input_size
-                l3_output_size = len(self.locality_sizes) * FLAGS.hidden3 + l3_input_size
-            else:
-                l3_input_size = FLAGS.hidden2 + l2_input_size
-                l3_output_size = FLAGS.hidden3 + l3_input_size
-        else:
-            if not self.is_pool:
-                l3_input_size = len(self.locality_sizes) * FLAGS.hidden2
-                l3_output_size = len(self.locality_sizes) * FLAGS.hidden3
-            else:
-                l3_input_size = FLAGS.hidden2
-                l3_output_size = FLAGS.hidden3
+        # if self.is_skip_connection:
+        #     if not self.is_pool:
+        #         l3_input_size = len(self.locality_sizes) * FLAGS.hidden2 + l2_input_size
+        #         l3_output_size = len(self.locality_sizes) * FLAGS.hidden3 + l3_input_size
+        #     else:
+        #         l3_input_size = FLAGS.hidden2 + l2_input_size
+        #         l3_output_size = FLAGS.hidden3 + l3_input_size
+        # else:
+        #     if not self.is_pool:
+        #         l3_input_size = len(self.locality_sizes) * FLAGS.hidden2
+        #         l3_output_size = len(self.locality_sizes) * FLAGS.hidden3
+        #     else:
+        #         l3_input_size = FLAGS.hidden2
+        #         l3_output_size = FLAGS.hidden3
 
         # convolutional layer 3
-        self.layers.append(ResGraphConvolution(input_dim=l3_input_size,
-                                               output_dim=FLAGS.hidden3,
-                                               locality_sizes=self.locality_sizes,
-                                               placeholders=self.placeholders,
-                                               act=lambda x: x,
-                                               dropout=True,
-                                               sparse_inputs=False,
-                                               logging=self.logging,
-                                               is_pool=self.is_pool,
-                                               is_skip_connection=self.is_skip_connection))
+        # self.layers.append(ResGraphConvolution(input_dim=l3_input_size,
+        #                                        output_dim=FLAGS.hidden3,
+        #                                        locality_sizes=self.locality_sizes,
+        #                                        placeholders=self.placeholders,
+        #                                        act=lambda x: x,
+        #                                        dropout=True,
+        #                                        sparse_inputs=False,
+        #                                        logging=self.logging,
+        #                                        is_pool=self.is_pool,
+        #                                        is_skip_connection=self.is_skip_connection))
 
         # last dense layer for predicting classes
-        self.layers.append(Dense(input_dim=l3_output_size, output_dim=self.output_dim, placeholders=self.placeholders,
+        self.layers.append(Dense(input_dim=l2_output_size, output_dim=self.output_dim, placeholders=self.placeholders,
                                  dropout=False,
                                  sparse_inputs=False, act=lambda x: x, bias=True, featureless=False))
 
