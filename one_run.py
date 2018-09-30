@@ -5,6 +5,8 @@ is_skip_connection = FLAGS.is_skip_connection
 
 adj, features, all_labels, one_hot_labels, node_weights, dense_features, num_class = load_data()  # load data
 
+# Note: set learning rate = 0.05 for case of dense network otherwise 0.01
+
 if FLAGS.model == 'gcn_cheby':
     # simple gcn example
     locality1 = 5
