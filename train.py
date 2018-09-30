@@ -8,7 +8,6 @@ from models import GCN, MLP, ResGCN
 from visualize import *
 import numpy as np
 from sklearn.metrics import confusion_matrix, roc_auc_score
-import csv
 
 # Set random seed
 seed = 123
@@ -22,16 +21,18 @@ flags.DEFINE_string('adj_type', 'age', 'Adjacency matrix creation')
 # 'cora', 'citeseer', 'pubmed', 'tadpole' # Please don't work with citation networks!!
 flags.DEFINE_string('dataset', 'tadpole', 'Dataset string.')
 # 'gcn(re-parametrization trick)', 'gcn_cheby(simple_gcn)', 'dense', 'res_gcn_cheby(our model)'
-flags.DEFINE_string('model', 'res_gcn_cheby', 'Model string.')
+flags.DEFINE_string('model', 'gcn_cheby', 'Model string.')
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('epochs', 300, 'Number of epochs to train.')
-flags.DEFINE_integer('hidden1', 110, 'Number of units in hidden layer 1.')
-flags.DEFINE_integer('hidden2', 50, 'Number of units in hidden layer 2.')
+flags.DEFINE_integer('hidden1', 40, 'Number of units in hidden layer 1.')
+flags.DEFINE_integer('hidden2', 10, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('hidden3', 25, 'Number of units in hidden layer 3.')
 flags.DEFINE_float('dropout', 0., 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('weight_decay', 0., 'Weight for L2 loss on embedding matrix.')
 flags.DEFINE_integer('early_stopping', 25, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_bool('featureless', False, 'featureless')
+flags.DEFINE_bool('is_pool', False, 'Use max-pooling for InceptionGCN model')
+flags.DEFINE_bool('is_skip_connection', False, 'Add skip connections to model')
 
 
 # Loading data
@@ -74,18 +75,35 @@ def create_support_placeholder(model_name, num_supports, adj, features, one_hot_
     return support, placeholders
 
 
+def avg_std_log(train_accuracy, val_accuracy, test_accuracy):
+    # average
+    train_avg_acc = np.mean(train_accuracy)
+    val_avg_acc = np.mean(val_accuracy)
+    test_avg_acc = np.mean(test_accuracy)
+
+    # std
+    train_std_acc = np.std(train_accuracy)
+    val_std_acc = np.std(val_accuracy)
+    test_std_acc = np.std(test_accuracy)
+
+    print('Average accuracies:')
+    print('train_avg: ', train_avg_acc, '±', train_std_acc)
+    print('val_avg: ', val_avg_acc, '±', val_std_acc)
+    print('test_avg: ', test_avg_acc, '±', test_std_acc)
+    print()
+    print()
+    return train_avg_acc, train_std_acc, val_avg_acc, val_std_acc, test_avg_acc, test_std_acc
+
+
 def train_k_fold(model_name, support, placeholders, features, all_labels, one_hot_labels, node_weights, dense_features,
-                 num_class, locality1=1, locality2=2, locality_sizes=None):
+                 num_class, is_pool=False, is_skip_connection=True, locality1=1, locality2=2, locality_sizes=None):
     """model_name: name of model (using option defined for FLAGS.model in top
        locality1 & locality2: values of k for 2 GC blocks of gcn_cheby(simple gcn model)
        locality_sizes: locality sizes included in each GC block for res_gcn_cheby(our proposed model)
     """
-    # adj, features, all_labels, one_hot_labels, node_weights, dense_features, num_class = load_data()
     # Create model
     logging = False
     if model_name == 'res_gcn_cheby':
-        is_pool = True  # options are pooling and concatenation
-        is_skip_connection = True  # having skip connection or not
         model = ResGCN(placeholders, input_dim=features[2][1], logging=logging, locality_sizes=locality_sizes,
                        is_pool=is_pool, is_skip_connection=is_skip_connection)
 
@@ -93,7 +111,6 @@ def train_k_fold(model_name, support, placeholders, features, all_labels, one_ho
         model = GCN(placeholders, input_dim=features[2][1], logging=logging)
 
     elif model_name == 'gcn_cheby':
-        is_skip_connection = True  # having skip connection or not
         locality = [locality1, locality2]  # locality sizes of different blocks
         model = GCN(placeholders, input_dim=features[2][1], logging=logging, is_simple=True,
                     is_skip_connection=is_skip_connection, locality=locality)
@@ -169,7 +186,7 @@ def train_k_fold(model_name, support, placeholders, features, all_labels, one_ho
         print('train class distribution:', train_class)
         val_class = [val_labels.tolist().count(i) for i in range(1, num_class + 1)]
         print('val class distribution:', val_class)
-        test_class = [test_labels.tolist().count(i) / np.sum(test_mask) for i in range(1, num_class + 1)]
+        test_class = [test_labels.tolist().count(i) for i in range(1, num_class + 1)]
         print('test class distribution:', test_class)
 
         # saving initial boolean masks for later use
@@ -186,7 +203,6 @@ def train_k_fold(model_name, support, placeholders, features, all_labels, one_ho
         sess = tf.Session()
 
         # Session with GPU
-        # config = tf.ConfigProto(device_count = {'GPU': 1})
         # config = tf.ConfigProto()
         # config.gpu_options.allow_growth = True
         # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
@@ -311,21 +327,3 @@ def train_k_fold(model_name, support, placeholders, features, all_labels, one_ho
     # print(test_avg_auc, '±', np.std(test_auc))
 
     return train_accuracy, val_accuracy, test_accuracy
-
-# gcn example
-# num_supports = 1
-# support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
-# train_k_fold(FLAGS.model, support, placeholders)
-
-# simple gcn example
-# locality1 = 5
-# locality2 = 2
-# num_supports = max(locality1, locality2) + 1
-# support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
-# train_k_fold(FLAGS.model, support, placeholders, locality=2, locality=5)
-
-# ResGCN example
-# locality_sizes = [2, 5]
-# num_supports = np.max(locality_sizes) + 1
-# support, placeholders = create_support_placeholder(FLAGS.model, num_supports)
-# train_k_fold(FLAGS.model, support, placeholders, locality_sizes=locality_sizes)
