@@ -21,8 +21,8 @@ flags.DEFINE_string('adj_type', 'age', 'Adjacency matrix creation')
 # 'cora', 'citeseer', 'pubmed', 'tadpole' # Please don't work with citation networks!!
 flags.DEFINE_string('dataset', 'tadpole', 'Dataset string.')
 # 'gcn(re-parametrization trick)', 'gcn_cheby(simple_gcn)', 'dense', 'res_gcn_cheby(our model)'
-flags.DEFINE_string('model', 'gcn_cheby', 'Model string.')
-flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_string('model', 'dense', 'Model string.')
+flags.DEFINE_float('learning_rate', 0.05, 'Initial learning rate.')
 flags.DEFINE_integer('epochs', 300, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 30, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 3, 'Number of units in hidden layer 2.')
@@ -60,7 +60,7 @@ def load_data():
 
 # creating placeholders and support based on number of supports fed to network
 def create_support_placeholder(model_name, num_supports, adj, features, one_hot_labels):
-    if model_name == 'gcn':
+    if model_name == 'gcn' or model_name == 'dense':
         support = [preprocess_adj(adj)]
     else:
         support = chebyshev_polynomials(adj, num_supports - 1)
