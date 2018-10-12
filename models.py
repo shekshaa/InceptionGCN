@@ -194,19 +194,6 @@ class GCN(Model):
                                                 dropout=True,
                                                 logging=self.logging))
 
-            self.layers.append(GraphConvolution(input_dim=FLAGS.hidden2,
-                                                output_dim=FLAGS.hidden3,
-                                                placeholders=self.placeholders,
-                                                act=tf.nn.relu,
-                                                dropout=True,
-                                                logging=self.logging))
-
-            self.layers.append(GraphConvolution(input_dim=FLAGS.hidden3,
-                                                output_dim=self.output_dim,
-                                                placeholders=self.placeholders,
-                                                act=lambda x: x,
-                                                dropout=True,
-                                                logging=self.logging))
         # 2 layer simple gcn model
         else:
             if self.is_skip_connection:
