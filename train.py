@@ -17,7 +17,7 @@ np.random.seed(seed)
 # Settings
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string('adj_type', 'age', 'Adjacency matrix creation')
+flags.DEFINE_string('adj_type', 'gender', 'Adjacency matrix creation')
 # 'cora', 'citeseer', 'pubmed', 'tadpole' # Please don't work with citation networks!!
 flags.DEFINE_string('dataset', 'tadpole', 'Dataset string.')
 # 'gcn(re-parametrization trick)', 'gcn_cheby(simple_gcn)', 'dense', 'res_gcn_cheby(our model)'
@@ -143,6 +143,9 @@ def train_k_fold(model_name, support, placeholders, features, all_labels, one_ho
     val_part = 0
     test_part = 1
 
+    # storing number of epochs of each fold
+    num_epochs = []
+
     # shape of features
     print('whole features shape: ', dense_features.shape)
 
@@ -259,6 +262,7 @@ def train_k_fold(model_name, support, placeholders, features, all_labels, one_ho
                 print("Early stopping on epoch {}...".format(epoch + 1))
                 break
 
+        num_epochs.append(epoch)
         print("Optimization Finished!")
 
         # Collecting final results of train, test & val
@@ -312,6 +316,7 @@ def train_k_fold(model_name, support, placeholders, features, all_labels, one_ho
     else:
         print('Results of 4 layer dense neural network')
 
+    print('Average number of epochs: {:.3f}'.format(np.mean(num_epochs)))
     print('Accuracy on {} folds'.format(num_folds))
     print('train:', train_accuracy)
     print('val', val_accuracy)
