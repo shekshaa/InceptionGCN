@@ -136,12 +136,12 @@ class MLP(Model):
         #                          dropout=True,
         #                          logging=self.logging))
         #
-        # self.layers.append(Dense(input_dim=FLAGS.hidden3,
-        #                          output_dim=self.output_dim,
-        #                          placeholders=self.placeholders,
-        #                          act=lambda x: x,
-        #                          dropout=True,
-        #                          logging=self.logging))
+        self.layers.append(Dense(input_dim=FLAGS.hidden2,
+                                 output_dim=self.output_dim,
+                                 placeholders=self.placeholders,
+                                 act=lambda x: x,
+                                 dropout=True,
+                                 logging=self.logging))
 
     def predict(self):
         return tf.nn.softmax(self.outputs)
@@ -190,7 +190,7 @@ class GCN(Model):
             self.layers.append(GraphConvolution(input_dim=FLAGS.hidden1,
                                                 output_dim=FLAGS.hidden2,
                                                 placeholders=self.placeholders,
-                                                act=tf.nn.relu,
+                                                act=lambda x: x,
                                                 dropout=True,
                                                 logging=self.logging))
 
