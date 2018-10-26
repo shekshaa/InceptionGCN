@@ -29,6 +29,7 @@ flags.DEFINE_integer('hidden2', 3, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('hidden3', 3, 'Number of units in hidden layer 3.')
 flags.DEFINE_float('dropout', 0., 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('weight_decay', 0., 'Weight for L2 loss on embedding matrix.')
+flags.DEFINE_integer('start_stopping', 100, 'Number of epochs before checking early stopping')
 flags.DEFINE_integer('early_stopping', 30, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_bool('featureless', False, 'featureless')
 flags.DEFINE_bool('is_pool', True, 'Use max-pooling for InceptionGCN model')
@@ -266,7 +267,7 @@ def train_k_fold(model_name, support, placeholders, is_pool=False, is_skip_conne
                   "test_accuracy=", "{:.5f}".format(test_acc))
 
             # Check val loss for early stopping
-            if epoch > FLAGS.early_stopping and cost_val[-1] > np.mean(cost_val[-(FLAGS.early_stopping+1):-1]):
+            if epoch > max(FLAGS.early_stopping, FLAGS.start_stopping) and cost_val[-1] > np.mean(cost_val[-(FLAGS.early_stopping+1):-1]):
                 print("Early stopping on epoch {}...".format(epoch + 1))
                 break
 
