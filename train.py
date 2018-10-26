@@ -17,49 +17,51 @@ np.random.seed(seed)
 # Settings
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string('adj_type', 'gender', 'Adjacency matrix creation')
+flags.DEFINE_string('adj_type', 'age', 'Adjacency matrix creation')
 # 'cora', 'citeseer', 'pubmed', 'tadpole' # Please don't work with citation networks!!
 flags.DEFINE_string('dataset', 'tadpole', 'Dataset string.')
 # 'gcn(re-parametrization trick)', 'gcn_cheby(simple_gcn)', 'dense', 'res_gcn_cheby(our model)'
-flags.DEFINE_string('model', 'gcn_cheby', 'Model string.')
+flags.DEFINE_string('model', 'res_gcn_cheby', 'Model string.')
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('epochs', 300, 'Number of epochs to train.')
 flags.DEFINE_integer('hidden1', 30, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 3, 'Number of units in hidden layer 2.')
-flags.DEFINE_integer('hidden3', 25, 'Number of units in hidden layer 3.')
+flags.DEFINE_integer('hidden3', 3, 'Number of units in hidden layer 3.')
 flags.DEFINE_float('dropout', 0., 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('weight_decay', 0., 'Weight for L2 loss on embedding matrix.')
-flags.DEFINE_integer('early_stopping', 25, 'Tolerance for early stopping (# of epochs).')
+flags.DEFINE_integer('early_stopping', 30, 'Tolerance for early stopping (# of epochs).')
 flags.DEFINE_bool('featureless', False, 'featureless')
-flags.DEFINE_bool('is_pool', False, 'Use max-pooling for InceptionGCN model')
+flags.DEFINE_bool('is_pool', True, 'Use max-pooling for InceptionGCN model')
 flags.DEFINE_bool('is_skip_connection', False, 'Add skip connections to model')
 
 
 # Loading data
-def load_data():
-    if FLAGS.dataset == 'tadpole':
+# def load_data():
+    # if FLAGS.dataset == 'tadpole':
         # features is in sparse format
         # node weights used for weighted loss
-        adj, features, all_labels, one_hot_labels, node_weights, dense_features = load_tadpole_data(FLAGS.adj_type)
-        num_class = 3
-    else:
+age_adj, gender_adj, fdg_adj, apoe_adj, mixed_adj, features, all_labels, one_hot_labels, node_weights, dense_features = \
+    load_tadpole_data()
+adj_dict = {'age': age_adj, 'gender': gender_adj, 'fdg': fdg_adj, 'apoe': apoe_adj, 'mixed': mixed_adj}
+num_class = 3
+    # else:
     # adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
-        adj, features, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
-        dense_features = features
-        node_weights = np.ones((dense_features.shape[0],))
-        # Some preprocessing
-        features = preprocess_features(features)
-        if FLAGS.dataset == 'cora':
-            num_class = 7
-        elif FLAGS.dataset == 'citeseer':
-            num_class = 6
-        else:
-            num_class = 3
-    return adj, features, all_labels, one_hot_labels, node_weights, dense_features, num_class
+    #     adj, features, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
+    #     dense_features = features
+    #     node_weights = np.ones((dense_features.shape[0],))
+    #     Some preprocessing
+        # features = preprocess_features(features)
+        # if FLAGS.dataset == 'cora':
+        #     num_class = 7
+        # elif FLAGS.dataset == 'citeseer':
+        #     num_class = 6
+        # else:
+        #     num_class = 3
+    # return features, all_labels, one_hot_labels, node_weights, dense_features, num_class
 
 
 # creating placeholders and support based on number of supports fed to network
-def create_support_placeholder(model_name, num_supports, adj, features, one_hot_labels):
+def create_support_placeholder(model_name, num_supports, adj):
     if model_name == 'gcn' or model_name == 'dense':
         support = [preprocess_adj(adj)]
     else:
@@ -95,8 +97,8 @@ def avg_std_log(train_accuracy, val_accuracy, test_accuracy):
     return train_avg_acc, train_std_acc, val_avg_acc, val_std_acc, test_avg_acc, test_std_acc
 
 
-def train_k_fold(model_name, support, placeholders, features, all_labels, one_hot_labels, node_weights, dense_features,
-                 num_class, is_pool=False, is_skip_connection=True, locality1=1, locality2=2, locality_sizes=None):
+def train_k_fold(model_name, support, placeholders, is_pool=False, is_skip_connection=True,
+                 locality1=1, locality2=2, locality_sizes=None):
     """model_name: name of model (using option defined for FLAGS.model in top
        locality1 & locality2: values of k for 2 GC blocks of gcn_cheby(simple gcn model)
        locality_sizes: locality sizes included in each GC block for res_gcn_cheby(our proposed model)
@@ -215,18 +217,24 @@ def train_k_fold(model_name, support, placeholders, features, all_labels, one_ho
         sess.run(tf.global_variables_initializer())
 
         # loss and accuracy scalar curves
-        tf.summary.scalar(name='{}_{}_loss_fold_{}'.format(locality1, locality2, fold + 1), tensor=model.loss)
-        tf.summary.scalar(name='{}_{}_accuracy_fold_{}'.format(locality1, locality2, fold + 1), tensor=model.accuracy)
+        if model_name == 'res_gcn_cheby':
+            l1 = locality_sizes[0]
+            l2 = locality_sizes[1]
+        else:
+            l1 = locality1
+            l2 = locality2
+        tf.summary.scalar(name='{}_{}_loss_fold_{}'.format(l1, l2, fold + 1), tensor=model.loss)
+        tf.summary.scalar(name='{}_{}_accuracy_fold_{}'.format(l1, l2, fold + 1),
+                          tensor=model.accuracy)
         merged_summary = tf.summary.merge_all()
 
         # defining train, test and val writers in /tmp/model_name/ path
         train_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
-                                                    '_{}_{}/train_fold_{}/'.format(locality1, locality2, fold + 1))
+                                                    '_{}_{}/train_fold_{}/'.format(l1, l2, fold + 1))
         test_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
-                                                   '_{}_{}/test_fold_{}/'.format(locality1, locality2, fold + 1))
+                                                   '_{}_{}/test_fold_{}/'.format(l1, l2, fold + 1))
         val_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
-                                                  '_{}_{}/val_fold_{}/'.format(locality1, locality2, fold + 1))
-
+                                                  '_{}_{}/val_fold_{}/'.format(l1, l2, fold + 1))
         # Train model
         cost_val = []
         train_results = []
@@ -271,13 +279,19 @@ def train_k_fold(model_name, support, placeholders, features, all_labels, one_ho
         test_accuracy.append(test_acc)
 
         # Visualizing layers' embedding
-        # if FLAGS.model == 'res_gcn_cheby':
-        #     path = '/tmp/' + FLAGS.model + '/layers/'
-        #     layer_writer = tf.summary.FileWriter(logdir=path)
-        #     write_meta_data_labels(all_labels, path)
-        #     visualize_node_embeddings_resgcn(features, support, placeholders, sess, model, layer_writer, is_pool, path,
-        #                                      len(locality_sizes))
-        #     layer_writer.close()
+        # if model_name == 'res_gcn_cheby':
+            # path = '/tmp/' + model_name + '_{}_{}'.format(l1, l2) + '/layers/' + \
+            #        'fold_{}/'.format(fold)
+            # layer_writer = tf.summary.FileWriter(logdir=path)
+            # write_meta_data_labels(all_labels, path)
+            # visualize_node_embeddings_resgcn(features, support, placeholders, sess, model, layer_writer, FLAGS.is_pool,
+            #                                  path, len(locality_sizes))
+            # layer_writer.close()
+            # activations = get_activations(features, support, placeholders, sess, model)
+            # l1_act = activations[0][1]
+            # l2_act = activations[1][1]
+            # graph_visualize(adj, dense_features, all_labels, 15, l1_act)
+            # graph_visualize(adj, dense_features, all_labels, 15, l2_act)
 
         # Confusion matrix on test set
         feed_dict = dict()
@@ -314,7 +328,7 @@ def train_k_fold(model_name, support, placeholders, features, all_labels, one_ho
         print('Results of res_gcn with localities of: ', locality_sizes)
 
     else:
-        print('Results of 4 layer dense neural network')
+        print('Results of 3 layer dense neural network')
 
     print('Average number of epochs: {:.3f}'.format(np.mean(num_epochs)))
     print('Accuracy on {} folds'.format(num_folds))
