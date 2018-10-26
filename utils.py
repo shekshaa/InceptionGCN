@@ -256,7 +256,6 @@ def load_tadpole_data(adj_type):
 
         if adj_type == 'mixed':
             adj = (age_affinity + gender_affinity + fdg_affinity + apoe_affinity) / 4
-            adj = (age_affinity + gender_affinity + fdg_affinity) / 3
         elif adj_type == 'age':
             adj = age_affinity
         elif adj_type == 'gender':
