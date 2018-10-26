@@ -177,12 +177,14 @@ def load_mit_data(adj_type):
 def load_tadpole_data(adj_type):
     with open('tadpole_dataset/tadpole_2.csv') as csv_file:
         rows = csv.reader(csv_file, delimiter=',')
+        apoe = []
         ages = []
         gender = []
         fdg = []
         features = []
         labels = []
         cnt = 0
+        apoe_col_num = 0
         age_col_num = 0
         gender_col_num = 0
         fdg_col_num = 0
@@ -190,7 +192,8 @@ def load_tadpole_data(adj_type):
         for row in rows:
             if cnt != 0:
                 row_features = row[fdg_col_num + 1:]
-                if row_features.count('') == 0:
+                if row_features.count('') == 0 and row[apoe_col_num] != '':
+                    apoe.append(int(row[apoe_col_num]))
                     ages.append(float(row[age_col_num]))
                     gender.append(row[gender_col_num])
                     fdg.append(float(row[fdg_col_num]))
@@ -198,6 +201,7 @@ def load_tadpole_data(adj_type):
                     features.append([float(item) for item in row_features])
                     cnt += 1
             else:
+                apoe_col_num = row.index('APOE4')
                 age_col_num = row.index('AGE')
                 gender_col_num = row.index('PTGENDER')
                 fdg_col_num = row.index('FDG')
@@ -205,6 +209,12 @@ def load_tadpole_data(adj_type):
                 cnt += 1
 
         num_nodes = len(labels)
+
+        apoe_affinity = np.zeros((num_nodes, num_nodes))
+        for i in range(num_nodes):
+            for j in range(i + 1, num_nodes):
+                if apoe[i] == apoe[j]:
+                    apoe_affinity[i, j] = apoe_affinity[j, i] = 1
 
         age_threshold = 2
         age_affinity = np.zeros((num_nodes, num_nodes))
@@ -239,17 +249,21 @@ def load_tadpole_data(adj_type):
         dist = distance.squareform(dist)
         sigma = np.mean(dist)
         w = np.exp(- dist ** 2 / (2 * sigma ** 2))
+        apoe_affinity *= w
         age_affinity *= w
         gender_affinity *= w
         fdg_affinity *= w
 
         if adj_type == 'mixed':
+            adj = (age_affinity + gender_affinity + fdg_affinity + apoe_affinity) / 4
             adj = (age_affinity + gender_affinity + fdg_affinity) / 3
         elif adj_type == 'age':
             adj = age_affinity
         elif adj_type == 'gender':
             adj = gender_affinity
         elif adj_type == 'fdg':
+            adj = fdg_affinity
+        elif adj_type == 'apoe':
             adj = fdg_affinity
         else:
             raise NotImplementedError
