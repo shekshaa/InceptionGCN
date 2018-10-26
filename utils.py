@@ -174,7 +174,7 @@ def load_mit_data(adj_type):
     return adj, features, train_label, val_label, test_label, train_mask, val_mask, test_mask, labels
 
 
-def load_tadpole_data(adj_type):
+def load_tadpole_data():
     with open('tadpole_dataset/tadpole_2.csv') as csv_file:
         rows = csv.reader(csv_file, delimiter=',')
         apoe = []
@@ -254,18 +254,20 @@ def load_tadpole_data(adj_type):
         gender_affinity *= w
         fdg_affinity *= w
 
-        if adj_type == 'mixed':
-            adj = (age_affinity + gender_affinity + fdg_affinity + apoe_affinity) / 4
-        elif adj_type == 'age':
-            adj = age_affinity
-        elif adj_type == 'gender':
-            adj = gender_affinity
-        elif adj_type == 'fdg':
-            adj = fdg_affinity
-        elif adj_type == 'apoe':
-            adj = fdg_affinity
-        else:
-            raise NotImplementedError
+        mixed_affinity = (age_affinity + gender_affinity + fdg_affinity + apoe_affinity) / 4
+        mixed_affinity *= w
+        # if adj_type == 'mixed':
+        #     adj = (age_affinity + gender_affinity + fdg_affinity + apoe_affinity) / 4
+        # elif adj_type == 'age':
+        #     adj = age_affinity
+        # elif adj_type == 'gender':
+        #     adj = gender_affinity
+        # elif adj_type == 'fdg':
+        #     adj = fdg_affinity
+        # elif adj_type == 'apoe':
+        #     adj = fdg_affinity
+        # else:
+        #     raise NotImplementedError
 
         c_1 = [i for i in range(num_nodes) if labels[i] == 0]
         c_2 = [i for i in range(num_nodes) if labels[i] == 1]
@@ -295,8 +297,21 @@ def load_tadpole_data(adj_type):
         np.random.shuffle(idx)
         features = features[idx, :]
         labels = [labels[item] for item in idx]
-        adj = adj[idx, :]
-        adj = adj[:, idx]
+
+        age_affinity = age_affinity[idx, :]
+        age_affinity = age_affinity[:, idx]
+
+        gender_affinity = gender_affinity[idx, :]
+        gender_affinity = gender_affinity[:, idx]
+
+        fdg_affinity = fdg_affinity[idx, :]
+        fdg_affinity = fdg_affinity[:, idx]
+
+        apoe_affinity = apoe_affinity[idx, :]
+        apoe_affinity = apoe_affinity[:, idx]
+
+        # adj = adj[idx, :]
+        # adj = adj[:, idx]
         node_weights = node_weights[idx]
 
         print(idx)
@@ -352,7 +367,7 @@ def load_tadpole_data(adj_type):
         sparse_features = sparse_to_tuple(sp.coo_matrix(features))
 
         # return adj, features, train_label, val_label, test_label, train_mask, val_mask, test_mask, labels
-        return adj, sparse_features, labels, one_hot_labels, node_weights, features
+        return age_affinity, gender_affinity, fdg_affinity, apoe_affinity, mixed_affinity, sparse_features, labels, one_hot_labels, node_weights, features
 
 
 def sparse_to_tuple(sparse_mx):
