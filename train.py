@@ -37,28 +37,11 @@ flags.DEFINE_bool('is_skip_connection', False, 'Add skip connections to model')
 
 
 # Loading data
-# def load_data():
-    # if FLAGS.dataset == 'tadpole':
-        # features is in sparse format
-        # node weights used for weighted loss
+sparsity_threshold = 0.5
 age_adj, gender_adj, fdg_adj, apoe_adj, mixed_adj, features, all_labels, one_hot_labels, node_weights, dense_features = \
-    load_tadpole_data()
+    load_tadpole_data(sparsity_threshold)
 adj_dict = {'age': age_adj, 'gender': gender_adj, 'fdg': fdg_adj, 'apoe': apoe_adj, 'mixed': mixed_adj}
 num_class = 3
-    # else:
-    # adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
-    #     adj, features, all_labels, one_hot_labels = load_citation_data(FLAGS.dataset)
-    #     dense_features = features
-    #     node_weights = np.ones((dense_features.shape[0],))
-    #     Some preprocessing
-        # features = preprocess_features(features)
-        # if FLAGS.dataset == 'cora':
-        #     num_class = 7
-        # elif FLAGS.dataset == 'citeseer':
-        #     num_class = 6
-        # else:
-        #     num_class = 3
-    # return features, all_labels, one_hot_labels, node_weights, dense_features, num_class
 
 
 # creating placeholders and support based on number of supports fed to network
