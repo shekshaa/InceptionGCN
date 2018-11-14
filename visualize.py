@@ -29,7 +29,7 @@ def get_activations(features, support, placeholders, sess, model):
     feed_dict.update({placeholders['features']: features})
     feed_dict.update({placeholders['support'][i]: support[i] for i in range(len(support))})
     feed_dict.update({placeholders['num_features_nonzero']: features[1].shape})
-    activations = [[layer.outputs, layer.total_output] for layer in model.layers
+    activations = [[layer.outputs, layer.pooled_outputs, layer.total_output] for layer in model.layers
                    if not isinstance(layer, Dense)]
     activations = sess.run(activations, feed_dict=feed_dict)
     return activations
@@ -40,16 +40,14 @@ def euclidean_distance(f1, f2):
     return np.sqrt(np.dot(diff, diff))
 
 
-def affinity_visualize(adj, dense_features, all_labels, num_sample):
+def affinity_visualize(adj, dense_features, all_labels, num_sample, num_classes):
     graph = nx.Graph()
     num_nodes = dense_features.shape[0]
-    c1 = [i for i in range(num_nodes) if all_labels[i] == 0]
-    c2 = [i for i in range(num_nodes) if all_labels[i] == 1]
-    c3 = [i for i in range(num_nodes) if all_labels[i] == 2]
-    c1 = c1[:num_sample]
-    c2 = c2[:num_sample]
-    c3 = c3[:num_sample]
-    idx = np.concatenate((c1, c2, c3), axis=0)
+    c = []
+    for j in range(num_classes):
+        c.append([i for i in range(num_nodes) if all_labels[i] == j])
+        c[-1] = c[-1][:num_sample]
+    idx = np.concatenate(c, axis=0)
     dense_features = dense_features[idx, :]
     all_labels = [all_labels[item] for item in idx]
     adj = adj[idx, :]
@@ -63,7 +61,6 @@ def affinity_visualize(adj, dense_features, all_labels, num_sample):
                 cnt += 1
                 graph.add_edge(i, j, weight=euclidean_distance(dense_features[i, :], dense_features[j, :]))
 
-    print(cnt)
     node_colors = []
     colors = ['r', 'g', 'b']
     for i in range(num_nodes):
@@ -73,48 +70,48 @@ def affinity_visualize(adj, dense_features, all_labels, num_sample):
     plt.show()
 
 
-def features_embedding_visualize(dense_features, all_labels):
-    transformed = TSNE(n_components=2).fit_transform(dense_features)
+def features_embedding_visualize(features_activations, all_labels, title):
+    transformed = TSNE(n_components=2).fit_transform(features_activations)
     colors = ['r', 'g', 'b']
     node_colors = []
-    for i in range(dense_features.shape[0]):
+    for i in range(features_activations.shape[0]):
         node_colors.append(colors[all_labels[i]])
     plt.scatter(transformed[:, 0], transformed[:, 1], c=node_colors)
+    plt.title(title)
     plt.show()
 
 
-def visualize_node_embeddings_resgcn(features, support, placeholders,
-                              sess, model, writer, is_pool, path, num_GCNs):
-    feed_dict = dict()
-    feed_dict.update({placeholders['features']: features})
-    feed_dict.update({placeholders['support'][i]: support[i] for i in range(len(support))})
-    feed_dict.update({placeholders['num_features_nonzero']: features[1].shape})
-    activations = [[layer.outputs, layer.pooled_outputs, layer.total_output] for layer in model.layers
-                   if not isinstance(layer, Dense)]
-    activations = sess.run(activations, feed_dict=feed_dict)
+def visualize_node_embeddings_resgcn(features, all_labels, support, placeholders, sess, model, is_pool, num_GCNs):
+    activations = get_activations(features, support, placeholders, sess, model)
     num_layers = len(activations)
-    config = projector.ProjectorConfig()
-    node_embedding = []
-    # diffs = []
     for i in range(num_layers):
-        # diff_layer = []
         for j in range(num_GCNs):
-            node_embedding.append(tf.Variable(activations[i][0][j],
-                                              name='layer_{}'.format(i) + '_GCN_{}'.format(j)))
-            # diff_layer.append(np.mean(np.equal(activations[i][0][j], activations[i][1])))
-            add_config(sess, config, node_embedding, path)
+            features_embedding_visualize(activations[i][0][j], all_labels, 'layer_{}'.format(i) + '_GCN_{}'.format(j))
         if is_pool:
-            node_embedding.append(tf.Variable(activations[i][1], name='layer_{}_pooled'.format(i)))
-            add_config(sess, config, node_embedding, path)
-
-        node_embedding.append(tf.Variable(activations[i][2], name='layer_{}_final'.format(i)))
-        add_config(sess, config, node_embedding, path)
-        # diffs.append(diff_layer)
-
-    # print(diffs)
-    saver_embed = tf.train.Saver(node_embedding)
-    saver_embed.save(sess, path + 'embedding_layers', 1)
-    projector.visualize_embeddings(writer, config)
+            features_embedding_visualize(activations[i][1], all_labels, 'layer_{}_pooled'.format(i))
+        features_embedding_visualize(activations[i][2], all_labels, 'layer_{}_final'.format(i))
+    # config = projector.ProjectorConfig()
+    # node_embedding = []
+    # diffs = []
+    # for i in range(num_layers):
+    #     # diff_layer = []
+    #     for j in range(num_GCNs):
+    #         node_embedding.append(tf.Variable(activations[i][0][j],
+    #                                           name='layer_{}'.format(i) + '_GCN_{}'.format(j)))
+    #         # diff_layer.append(np.mean(np.equal(activations[i][0][j], activations[i][1])))
+    #         add_config(sess, config, node_embedding, path)
+    #     if is_pool:
+    #         node_embedding.append(tf.Variable(activations[i][1], name='layer_{}_pooled'.format(i)))
+    #         add_config(sess, config, node_embedding, path)
+    #
+    #     node_embedding.append(tf.Variable(activations[i][2], name='layer_{}_final'.format(i)))
+    #     add_config(sess, config, node_embedding, path)
+    #     # diffs.append(diff_layer)
+    #
+    # # print(diffs)
+    # saver_embed = tf.train.Saver(node_embedding)
+    # saver_embed.save(sess, path + 'embedding_layers', 1)
+    # projector.visualize_embeddings(writer, config)
     # for i in range(num_layers):
     #     if isinstance(activations[i], tf.SparseTensorValue):
     #         activations[i] = sparse_to_dense([activations[i].indices, activations[i].values, activations[i].dense_shape])
