@@ -6,10 +6,11 @@ from scipy.sparse.linalg.eigen.arpack import eigsh
 from scipy.spatial import distance
 import sys
 import csv
-from sklearn import svm
-from sklearn.decomposition import PCA
 import pandas as pd
-import matplotlib.pyplot as plt
+from sklearn import svm
+from sklearn.linear_model import RidgeClassifier
+from sklearn.feature_selection import RFE
+import ABIDEParser as Reader
 
 
 def parse_index_file(filename):
@@ -34,6 +35,184 @@ def one_hot_to_class(one_hot_labels):
         class_labels[i] = np.argmax(one_hot_labels[i, :])
     return class_labels
 
+
+# Dimensionality reduction on feature vectors using a ridge classifier
+def feature_selection(features, labels, train_idx, num_features_selected):
+    estimator = RidgeClassifier()
+    selector = RFE(estimator, num_features_selected, step=100, verbose=1)
+    train_features = features[train_idx, :]
+    train_labels = labels[train_idx]
+    selector = selector.fit(train_features, train_labels)
+    new_features_selected = selector.transform(features)
+    return new_features_selected
+
+
+def load_ppmi_data(sparsity_threshold):
+    with open('./PPMI_dataset/idx_patients.csv') as csv_file:
+        rows = csv.reader(csv_file, delimiter=',')
+        ids = [int(float(row[0])) for row in rows]
+
+    with open('./PPMI_dataset/predictionEpoch21New.csv') as csv_file:
+        rows = csv.reader(csv_file, delimiter=',')
+        features = np.asarray([list(map(float, row)) for row in rows])
+
+    labels = np.zeros((len(ids),), dtype=int)
+    with open('./PPMI_dataset/LABELS_PPMI.csv') as csv_file:
+        rows = csv.reader(csv_file, delimiter=',')
+        for row in rows:
+            labels[ids.index(int(row[0]))] = int(row[1]) - 1
+
+    features = features[1:, :]
+    ids = ids[1:]
+    labels = labels[1:]
+
+    xls = pd.ExcelFile('./PPMI_dataset/Non-imagingPPMI.xls')
+
+    updrs = pd.read_excel(xls, 'UPDRS')
+    selected_columns = [column for column in updrs.columns if column[0:3] == 'NP3']
+    selected_columns.append('NHY')
+    selected_columns.append('PATNO')
+    selected_columns.append('EVENT_ID')
+    updrs = updrs[selected_columns]
+    updrs = updrs.dropna(axis=0, how='any')
+    # moca = pd.read_excel(xls, 'MOCA')
+    # moca = moca[['PATNO', 'MCATOT', 'EVENT_ID']]
+
+    not_BL_SC_list = []
+    for patient_id in ids:
+        updrs_patient_rows = updrs.loc[updrs['PATNO'] == patient_id]
+        # moca_patient_rows = moca.loc[updrs['PATNO'] == patient_id]
+        # if updrs_patient_rows.loc[updrs_patient_rows['EVENT_ID'] == 'BL'].empty or moca_patient_rows.loc[moca_patient_rows['EVENT_ID'] == 'SC'].empty:
+        if updrs_patient_rows.loc[updrs_patient_rows['EVENT_ID'] == 'BL'].empty:
+            not_BL_SC_list.append(patient_id)
+
+    for i in not_BL_SC_list:
+        idx = ids.index(i)
+        features = np.delete(features, idx, axis=0)
+        labels = np.delete(labels, idx, axis=0)
+        ids.pop(idx)
+
+    updrs = [np.sum(updrs.loc[updrs['PATNO'] == patient_id].iloc[0].values[:-2]) for patient_id in ids]
+
+    gender_age = pd.read_excel(xls, 'Gender_and_Age')
+    gender = gender_age[['PATNO', 'GENDER']]
+    age = gender_age[['PATNO', 'BIRTHDT']]
+
+    gender = [0 if gender.loc[gender['PATNO'] == patient_id].iloc[0].values[1] <= 1 else 1 for patient_id in ids]
+    age = [2018 - age.loc[age['PATNO'] == patient_id].iloc[0].values[1] for patient_id in ids]
+
+    num_nodes = len(ids)
+
+    # Age affinity
+    age_threshold = 2
+    age_affinity = np.zeros((num_nodes, num_nodes))
+    for i in range(num_nodes):
+        for j in range(i + 1, num_nodes):
+            if np.abs(age[i] - age[j]) <= age_threshold:
+                age_affinity[i, j] = age_affinity[j, i] = 1
+
+    # Gender affinity
+    gender_affinity = np.zeros((num_nodes, num_nodes))
+    for i in range(num_nodes):
+        for j in range(i + 1, num_nodes):
+            if gender[i] == gender[j]:
+                gender_affinity[i, j] = gender_affinity[j, i] = 1
+
+    # updrs affinity
+    updrs_new = np.asarray(updrs).reshape((len(updrs), 1))
+    column_sum = np.array(updrs_new.sum(0))
+    r_inv = np.power(column_sum, -1).flatten()
+    r_inv[np.isinf(r_inv)] = 0.
+    r_mat_inv = np.diag(r_inv)
+    updrs_new = updrs_new.dot(r_mat_inv)
+
+    dist = distance.pdist(updrs_new, metric='euclidean')
+    dist = distance.squareform(dist)
+    sigma = np.mean(dist)
+    weights = np.exp(- dist ** 2 / (2 * sigma ** 2))
+
+    updrs_affinity = np.zeros((num_nodes, num_nodes))
+    for i in range(num_nodes):
+        for j in range(i + 1, num_nodes):
+            if (updrs[i] <= 32 and updrs[j] <= 32) or (updrs[i] > 32 and updrs[j] > 32):
+                updrs_affinity[i, j] = updrs_affinity[j, i] = weights[i, j]
+
+    # features = np.asarray(features)
+    column_sum = np.array(features.sum(0))
+    r_inv = np.power(column_sum, -1).flatten()
+    r_inv[np.isinf(r_inv)] = 0.
+    r_mat_inv = np.diag(r_inv)
+    features = features.dot(r_mat_inv)
+
+    dist = distance.pdist(features, metric='euclidean')
+    dist = distance.squareform(dist)
+    sigma = np.mean(dist)
+    w = np.exp(- dist ** 2 / (2 * sigma ** 2))
+    w[w < sparsity_threshold] = 0
+    age_affinity *= w
+    gender_affinity *= w
+    updrs_affinity *= w
+
+    mixed_affinity = (age_affinity + gender_affinity + updrs_affinity) / 3
+
+    c_1 = [i for i in range(num_nodes) if labels[i] == 0]
+    c_2 = [i for i in range(num_nodes) if labels[i] == 1]
+
+    # imbalanced
+    c_1_num = len(c_1)
+    c_2_num = len(c_2)
+    node_weights = np.zeros((num_nodes,))
+    node_weights[c_1] = 1 - c_1_num / float(num_nodes)
+    node_weights[c_2] = 1 - c_2_num / float(num_nodes)
+
+    num_labels = 2
+    one_hot_labels = np.zeros((num_nodes, num_labels))
+    one_hot_labels[np.arange(num_nodes), labels] = 1
+
+    return gender_affinity, age_affinity, updrs_affinity, mixed_affinity, labels, one_hot_labels, node_weights, features
+
+
+def load_ABIDE_data():
+    subject_IDs = Reader.get_ids()
+    labels = Reader.get_subject_score(subject_IDs, score='DX_GROUP')
+
+    # Get acquisition site
+    sites = Reader.get_subject_score(subject_IDs, score='SITE_ID')
+    unique = np.unique(list(sites.values())).tolist()
+
+    num_classes = 2
+    num_nodes = len(subject_IDs)
+
+    # Initialise variables for class labels and acquisition sites
+    y_data = np.zeros([num_nodes, num_classes])
+    y = np.zeros([num_nodes, 1])
+    site = np.zeros([num_nodes, 1], dtype=np.int)
+
+    # Get class labels and acquisition site for all subjects
+    for i in range(num_nodes):
+        y_data[i, int(labels[subject_IDs[i]]) - 1] = 1
+        y[i] = int(labels[subject_IDs[i]])
+        site[i] = unique.index(sites[subject_IDs[i]])
+
+    # Compute feature vectors (vectorised connectivity networks)
+    features = Reader.get_networks(subject_IDs, kind='correlation', atlas_name='ho')
+
+    #gender_adj = np.zeros((num_nodes, num_nodes))
+    gender_adj = Reader.create_affinity_graph_from_scores(['SEX'], subject_IDs)
+    #site_adj = np.zeros((num_nodes, num_nodes))
+    site_adj = Reader.create_affinity_graph_from_scores([ 'SITE_ID'], subject_IDs)
+    mixed_adj = gender_adj+ site_adj
+
+    c_1 = [i for i in range(num_nodes) if y[i] == 1]
+    c_2 = [i for i in range(num_nodes) if y[i] == 2]
+
+    # print(idx)
+    y_data = np.asarray(y_data, dtype=int)
+    num_labels = 2
+    #one_hot_labels = np.zeros((num_nodes, num_labels))
+    #one_hot_labels[np.arange(num_nodes), y_data] = 1
+    sparse_features = sparse_to_tuple(sp.coo_matrix(features))
+    return gender_adj, site_adj, mixed_adj, sparse_features, y ,y_data, features
 
 def load_citation_data(dataset_str):
     """
@@ -174,7 +353,7 @@ def load_mit_data(adj_type):
     return adj, features, train_label, val_label, test_label, train_mask, val_mask, test_mask, labels
 
 
-def load_tadpole_data():
+def load_tadpole_data(sparsity_threshold):
     with open('tadpole_dataset/tadpole_2.csv') as csv_file:
         rows = csv.reader(csv_file, delimiter=',')
         apoe = []
@@ -249,34 +428,17 @@ def load_tadpole_data():
         dist = distance.squareform(dist)
         sigma = np.mean(dist)
         w = np.exp(- dist ** 2 / (2 * sigma ** 2))
+        w[w < sparsity_threshold] = 0
         apoe_affinity *= w
         age_affinity *= w
         gender_affinity *= w
         fdg_affinity *= w
 
         mixed_affinity = (age_affinity + gender_affinity + fdg_affinity + apoe_affinity) / 4
-        mixed_affinity *= w
-        # if adj_type == 'mixed':
-        #     adj = (age_affinity + gender_affinity + fdg_affinity + apoe_affinity) / 4
-        # elif adj_type == 'age':
-        #     adj = age_affinity
-        # elif adj_type == 'gender':
-        #     adj = gender_affinity
-        # elif adj_type == 'fdg':
-        #     adj = fdg_affinity
-        # elif adj_type == 'apoe':
-        #     adj = fdg_affinity
-        # else:
-        #     raise NotImplementedError
 
         c_1 = [i for i in range(num_nodes) if labels[i] == 0]
         c_2 = [i for i in range(num_nodes) if labels[i] == 1]
         c_3 = [i for i in range(num_nodes) if labels[i] == 2]
-
-        # balanced
-        # c_1_num = 100
-        # c_2_num = 120
-        # c_3_num = 80
 
         # imbalanced
         c_1_num = len(c_1)
