@@ -86,10 +86,10 @@ def visualize_node_embeddings_resgcn(features, all_labels, support, placeholders
     num_layers = len(activations)
     for i in range(num_layers):
         for j in range(num_GCNs):
-            features_embedding_visualize(activations[i][0][j], all_labels, 'layer_{}'.format(i) + '_GCN_{}'.format(j))
+            features_embedding_visualize(activations[i][0][j], all_labels, 'layer_{}'.format(i + 1) + '_GCN_{}'.format(j + 1))
         if is_pool:
-            features_embedding_visualize(activations[i][1], all_labels, 'layer_{}_pooled'.format(i))
-        features_embedding_visualize(activations[i][2], all_labels, 'layer_{}_final'.format(i))
+            features_embedding_visualize(activations[i][1], all_labels, 'layer_{}_pooled'.format(i + 1))
+        features_embedding_visualize(activations[i][2], all_labels, 'layer_{}_final'.format(i + 1))
     # config = projector.ProjectorConfig()
     # node_embedding = []
     # diffs = []
