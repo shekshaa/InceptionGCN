@@ -263,7 +263,8 @@ def train_k_fold(model_name, support, placeholders, is_pool=False, is_skip_conne
         test_accuracy.append(test_acc)
 
         # Visualizing layers' embedding
-        # if model_name == 'res_gcn_cheby':
+        if model_name == 'res_gcn_cheby':
+            visualize_node_embeddings_resgcn(features, all_labels, support, placeholders, sess, model, FLAGS.is_pool, 2)
             # path = '/tmp/' + model_name + '_{}_{}'.format(l1, l2) + '/layers/' + \
             #        'fold_{}/'.format(fold)
             # layer_writer = tf.summary.FileWriter(logdir=path)
