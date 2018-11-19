@@ -76,7 +76,7 @@ def features_embedding_visualize(features_activations, all_labels, title):
     node_colors = []
     for i in range(features_activations.shape[0]):
         node_colors.append(colors[all_labels[i]])
-    plt.scatter(transformed[:, 0], transformed[:, 1], c=node_colors)
+    plt.scatter(transformed[:, 0], transformed[:, 1], c=node_colors, s=10)
     plt.title(title)
     plt.show()
 
