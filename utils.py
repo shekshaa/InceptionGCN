@@ -47,6 +47,23 @@ def feature_selection(features, labels, train_idx, num_features_selected):
     return new_features_selected
 
 
+def data_generator(means, covariances, num_sample, threshold):
+    num_clusters = means.shape[0]
+    num_nodes = num_sample * num_clusters
+    samples = np.empty((num_clusters, num_sample, means.shape[1]), dtype=float)
+    labels = np.empty((num_nodes,), dtype=int)
+    for i in range(num_clusters):
+        samples[i, :] = np.random.multivariate_normal(mean=means[i, :], cov=covariances[i, :, :], size=(num_sample, ))
+        labels[i * num_sample: (i + 1) * num_sample] = i
+    features = samples.reshape((-1, means.shape[1]))
+    adj = np.zeros((num_nodes,num_nodes), dtype=float)
+    for i in range(num_nodes):
+        for j in range(i + 1, num_nodes):
+            if np.dot(features[i] - features[j], features[i] - features[j]) < threshold:
+                adj[i, j] = adj[j, i] = 1
+    return features, adj, labels
+
+
 def load_ppmi_data(sparsity_threshold):
     with open('./PPMI_dataset/idx_patients.csv') as csv_file:
         rows = csv.reader(csv_file, delimiter=',')
