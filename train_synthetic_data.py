@@ -346,9 +346,9 @@ def all_experiment_simple_gcn():
             test_avg_table[i, j] = test_avg
             test_std_table[i, j] = test_std
             tf.reset_default_graph()
-    file_writer_simple_gcn(train_avg_table, train_std_table, variance_list, locality_list)
-    file_writer_simple_gcn(val_avg_table, val_std_table, variance_list, locality_list)
-    file_writer_simple_gcn(test_avg_table, test_std_table, variance_list, locality_list)
+    file_writer_simple_gcn(train_avg_table, train_std_table, variance_list, locality_list, 'train')
+    file_writer_simple_gcn(val_avg_table, val_std_table, variance_list, locality_list, 'val')
+    file_writer_simple_gcn(test_avg_table, test_std_table, variance_list, locality_list, 'test')
 
 
 def all_experiment_inception_gcn():
@@ -376,17 +376,17 @@ def all_experiment_inception_gcn():
         test_std_table[i] = test_std
         tf.reset_default_graph()
 
-    file_writer_inception_gcn(train_avg_table, train_std_table, variance_list)
-    file_writer_inception_gcn(val_avg_table, val_std_table, variance_list)
-    file_writer_inception_gcn(test_avg_table, test_std_table, variance_list)
+    file_writer_inception_gcn(train_avg_table, train_std_table, variance_list, 'train')
+    file_writer_inception_gcn(val_avg_table, val_std_table, variance_list, 'val')
+    file_writer_inception_gcn(test_avg_table, test_std_table, variance_list, 'test')
 
 
-def file_writer_simple_gcn(avg_table, std_table, variance_list, locality_list):
+def file_writer_simple_gcn(avg_table, std_table, variance_list, locality_list, typ):
     # Open csv file to write average results of different locality settings
     with open('Acc_avg_std_simple_gcn.csv', mode='a') as csv_file:
         writer = csv.writer(csv_file)
         # write header of file
-        header = ['']
+        header = [typ]
         newline = ['']
         for i in locality_list:
             header.append(str(i))
@@ -401,22 +401,22 @@ def file_writer_simple_gcn(avg_table, std_table, variance_list, locality_list):
         writer.writerow(newline)
 
 
-def file_writer_inception_gcn(avg_table, std_table, variance_list):
+def file_writer_inception_gcn(avg_table, std_table, variance_list, typ):
     # Open csv file to write average results of different locality settings
     with open('Acc_avg_std_incpetion_gcn.csv', mode='a') as csv_file:
         writer = csv.writer(csv_file)
         # write header of file
-        header = ['k1=1, k2=10']
+        header = [typ]
         newline = ['']
         for i in variance_list:
             header.append(str(i))
             newline.append('')
         writer.writerow(header)
+        row = ['']
         for i in range(len(variance_list)):
-            row = '{:.2f} ± {:.2f}'.format(avg_table[i - 1] * 100, std_table[i - 1] * 100)
-            writer.writerow(row)
+            row.append('{:.2f} ± {:.2f}'.format(avg_table[i - 1] * 100, std_table[i - 1] * 100))
+        writer.writerow(row)
         writer.writerow(newline)
         writer.writerow(newline)
-
 # all_experiment_simple_gcn()
-all_experiment_inception_gcn()
+# all_experiment_inception_gcn()
