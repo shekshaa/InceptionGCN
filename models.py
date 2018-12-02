@@ -367,10 +367,6 @@ class OneLayerGCN(Model):
         self.build()
 
     def _loss(self):
-        # Weight decay loss
-        # for var in self.layers[0].vars.values():
-        #     self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
-
         # Cross entropy error
         self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
                                                   self.placeholders['labels_mask'])
@@ -389,6 +385,47 @@ class OneLayerGCN(Model):
                                             logging=self.logging,
                                             is_simple=True,
                                             locality=self.locality))
+
+    def predict(self):
+        return tf.nn.softmax(self.outputs)
+
+
+class OneLayerInception(Model):
+    def __init__(self, placeholders, input_dim, locality_sizes, **kwargs):
+        super(OneLayerInception, self).__init__(**kwargs)
+
+        self.inputs = placeholders['features']
+        self.input_dim = input_dim
+        # self.input_dim = self.inputs.get_shape().as_list()[1]  # To be supported in future Tensorflow versions
+        self.output_dim = placeholders['labels'].get_shape().as_list()[1]
+        self.placeholders = placeholders
+        self.locality_sizes = locality_sizes
+        self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
+
+        self.build()
+
+    def _loss(self):
+        # Cross entropy error
+        self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
+                                                  self.placeholders['labels_mask'])
+        tf.summary.scalar(name='loss', tensor=self.loss)
+
+    def _accuracy(self):
+        self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'],
+                                        self.placeholders['labels_mask'])
+        tf.summary.scalar(name='accuracy', tensor=self.accuracy)
+
+    def _build(self):
+        # convolutional layer 1
+        self.layers.append(ResGraphConvolution(input_dim=self.input_dim,
+                                               output_dim=self.output_dim,
+                                               locality_sizes=self.locality_sizes,
+                                               placeholders=self.placeholders,
+                                               act=tf.nn.relu,
+                                               dropout=True,
+                                               sparse_inputs=True,
+                                               logging=self.logging,
+                                               is_pool=True, is_skip_connection=False))
 
     def predict(self):
         return tf.nn.softmax(self.outputs)
