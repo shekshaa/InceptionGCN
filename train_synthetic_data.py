@@ -3,7 +3,7 @@ from __future__ import print_function
 import time
 from utils import *
 from visualize import *
-from models import OneLayerGCN
+from models import OneLayerGCN, OneLayerInception
 from sklearn.metrics import confusion_matrix
 import numpy as np
 
@@ -62,7 +62,7 @@ def avg_std_log(train_accuracy, val_accuracy, test_accuracy):
     return train_avg_acc, train_std_acc, val_avg_acc, val_std_acc, test_avg_acc, test_std_acc
 
 
-def train(variance, mean, num_sample, locality_size):
+def train(model_typ, variance, mean, num_sample, locality_size):
     mean0 = [-mean, -mean]
     mean1 = [mean, mean]
     cov0 = [[.5, 0], [0, .5]]
@@ -74,13 +74,18 @@ def train(variance, mean, num_sample, locality_size):
     dense_features, features, adj, all_labels, one_hot_labels = data_generator(means=means, covariances=cov,
                                                                                num_sample=num_sample, threshold=0.5)
 
-    model_name = 'OneLayerGCN'
-    num_supports = locality_size + 1
-    support, placeholders = create_support_placeholder(FLAGS.model, num_supports, adj, features, one_hot_labels)
-
     # Create model
     logging = False
-    model = OneLayerGCN(placeholders, input_dim=features[2][1], locality=locality_size, logging=logging)
+    if model_typ == 'simple_gcn':
+        model_name = 'OneLayerGCN'
+        num_supports = locality_size + 1
+        support, placeholders = create_support_placeholder(FLAGS.model, num_supports, adj, features, one_hot_labels)
+        model = OneLayerGCN(placeholders, input_dim=features[2][1], locality=locality_size, logging=logging)
+    else:
+        model_name = 'OneLayerInception'
+        num_supports = max(locality_size) + 1
+        support, placeholders = create_support_placeholder(FLAGS.model, num_supports, adj, features, one_hot_labels)
+        model = OneLayerInception(placeholders, input_dim=features[2][1], locality_sizes=locality_size, logging=logging)
 
     # Define model evaluation function
     def evaluate(features, support, labels, mask, placeholders):
@@ -187,18 +192,32 @@ def train(variance, mean, num_sample, locality_size):
         sess.run(tf.global_variables_initializer())
 
         # loss and accuracy scalar curves
-        tf.summary.scalar(name='{}_loss_fold_{}'.format(locality_size, fold + 1), tensor=model.loss)
-        tf.summary.scalar(name='{}_accuracy_fold_{}'.format(locality_size, fold + 1),
-                          tensor=model.accuracy)
-        merged_summary = tf.summary.merge_all()
+        if model_typ == 'simple_gcn':
+            tf.summary.scalar(name='{}_loss_fold_{}'.format(locality_size, fold + 1), tensor=model.loss)
+            tf.summary.scalar(name='{}_accuracy_fold_{}'.format(locality_size, fold + 1),
+                              tensor=model.accuracy)
 
-        # defining train, test and val writers in /tmp/model_name/ path
-        train_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
-                                                    '_{}/train_fold_{}/'.format(locality_size, fold + 1))
-        test_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
-                                                   '_{}/test_fold_{}/'.format(locality_size, fold + 1))
-        val_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
-                                                  '_{}/val_fold_{}/'.format(locality_size, fold + 1))
+            # defining train, test and val writers in /tmp/model_name/ path
+            train_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
+                                                        '_{}/train_fold_{}/'.format(locality_size, fold + 1))
+            test_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
+                                                       '_{}/test_fold_{}/'.format(locality_size, fold + 1))
+            val_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
+                                                      '_{}/val_fold_{}/'.format(locality_size, fold + 1))
+        else:
+            tf.summary.scalar(name='{}_{}_loss_fold_{}'.format(locality_size[0], locality_size[1], fold + 1), tensor=model.loss)
+            tf.summary.scalar(name='{}_{}_accuracy_fold_{}'.format(locality_size[0], locality_size[1], fold + 1),
+                              tensor=model.accuracy)
+
+            # defining train, test and val writers in /tmp/model_name/ path
+            train_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
+                                                        '{}_{}/train_fold_{}/'.format(locality_size[0], locality_size[1], fold + 1))
+            test_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
+                                                       '{}_{}/test_fold_{}/'.format(locality_size[0], locality_size[1], fold + 1))
+            val_writer = tf.summary.FileWriter(logdir='/tmp/' + model_name +
+                                                      '{}_{}/val_fold_{}/'.format(locality_size[0], locality_size[1], fold + 1))
+
+        merged_summary = tf.summary.merge_all()
         # Train model
         cost_val = []
         train_results = []
@@ -300,7 +319,7 @@ def train(variance, mean, num_sample, locality_size):
     return train_accuracy, val_accuracy, test_accuracy
 
 
-def all_experiment():
+def all_experiment_simple_gcn():
     variance_list = [0.1, 0.3, 0.5, 0.7, 1]
     locality_list = [1, 2, 3, 10]
     num_sample = 300
@@ -317,24 +336,54 @@ def all_experiment():
         var = variance_list[i]
         for j in range(n2):
             locality = locality_list[j]
-            train_acc, val_acc, test_acc = train(var, 1, num_sample, locality)
+            train_acc, val_acc, test_acc = train('simple_gcn', var, 1, num_sample, locality)
             train_avg, train_std, val_avg, val_std, test_avg, test_std = avg_std_log(train_acc, val_acc, test_acc)
 
-            train_avg_table[i - 1, j - 1] = train_avg
-            train_std_table[i - 1, j - 1] = train_std
-            val_avg_table[i - 1, j - 1] = val_avg
-            val_std_table[i - 1, j - 1] = val_std
-            test_avg_table[i - 1, j - 1] = test_avg
-            test_std_table[i - 1, j - 1] = test_std
+            train_avg_table[i, j] = train_avg
+            train_std_table[i, j] = train_std
+            val_avg_table[i, j] = val_avg
+            val_std_table[i, j] = val_std
+            test_avg_table[i, j] = test_avg
+            test_std_table[i, j] = test_std
             tf.reset_default_graph()
-    file_writer(train_avg_table, train_std_table, variance_list, locality_list)
-    file_writer(val_avg_table, val_std_table, variance_list, locality_list)
-    file_writer(test_avg_table, test_std_table, variance_list, locality_list)
+    file_writer_simple_gcn(train_avg_table, train_std_table, variance_list, locality_list)
+    file_writer_simple_gcn(val_avg_table, val_std_table, variance_list, locality_list)
+    file_writer_simple_gcn(test_avg_table, test_std_table, variance_list, locality_list)
 
 
-def file_writer(avg_table, std_table, variance_list, locality_list):
+def all_experiment_inception_gcn():
+    variance_list = [0.1, 0.3, 0.5, 0.7, 1]
+    locality_size = [1, 10]
+    num_sample = 300
+    n1 = len(variance_list)
+
+    train_avg_table = np.zeros((n1,))
+    test_avg_table = np.zeros((n1,))
+    val_avg_table = np.zeros((n1,))
+    train_std_table = np.zeros((n1,))
+    test_std_table = np.zeros((n1,))
+    val_std_table = np.zeros((n1,))
+    for i in range(n1):
+        var = variance_list[i]
+        train_acc, val_acc, test_acc = train('inception_gcn', var, 1, num_sample, locality_size)
+        train_avg, train_std, val_avg, val_std, test_avg, test_std = avg_std_log(train_acc, val_acc, test_acc)
+
+        train_avg_table[i] = train_avg
+        train_std_table[i] = train_std
+        val_avg_table[i] = val_avg
+        val_std_table[i] = val_std
+        test_avg_table[i] = test_avg
+        test_std_table[i] = test_std
+        tf.reset_default_graph()
+
+    file_writer_inception_gcn(train_avg_table, train_std_table, variance_list)
+    file_writer_inception_gcn(val_avg_table, val_std_table, variance_list)
+    file_writer_inception_gcn(test_avg_table, test_std_table, variance_list)
+
+
+def file_writer_simple_gcn(avg_table, std_table, variance_list, locality_list):
     # Open csv file to write average results of different locality settings
-    with open('Acc_avg_std.csv', mode='a') as csv_file:
+    with open('Acc_avg_std_simple_gcn.csv', mode='a') as csv_file:
         writer = csv.writer(csv_file)
         # write header of file
         header = ['']
@@ -351,4 +400,23 @@ def file_writer(avg_table, std_table, variance_list, locality_list):
         writer.writerow(newline)
         writer.writerow(newline)
 
-all_experiment()
+
+def file_writer_inception_gcn(avg_table, std_table, variance_list):
+    # Open csv file to write average results of different locality settings
+    with open('Acc_avg_std_incpetion_gcn.csv', mode='a') as csv_file:
+        writer = csv.writer(csv_file)
+        # write header of file
+        header = ['k1=1, k2=10']
+        newline = ['']
+        for i in variance_list:
+            header.append(str(i))
+            newline.append('')
+        writer.writerow(header)
+        for i in range(len(variance_list)):
+            row = '{:.2f} ± {:.2f}'.format(avg_table[i - 1] * 100, std_table[i - 1] * 100)
+            writer.writerow(row)
+        writer.writerow(newline)
+        writer.writerow(newline)
+
+# all_experiment_simple_gcn()
+all_experiment_inception_gcn()
