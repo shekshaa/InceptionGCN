@@ -78,6 +78,48 @@ def data_generator(means, covariances, num_sample, threshold):
     return features, sparse_features, adj, labels, one_hot_labels
 
 
+def data_generator2(feature_means, feature_covariances, graph_means, graph_covariances, num_sample, threshold):
+    num_clusters = feature_means.shape[0]
+    num_nodes = num_sample * num_clusters
+    num_graphs = graph_means.shape[0]
+
+    samples = np.empty((num_clusters, num_sample, feature_means.shape[1]), dtype=float)
+    labels = np.empty((num_nodes,), dtype=int)
+    for i in range(num_clusters):
+        samples[i] = np.random.multivariate_normal(mean=feature_means[i, :], cov=feature_covariances[i, :, :],
+                                                   size=(num_sample,))
+        labels[i * num_sample: (i + 1) * num_sample] = i
+    features = samples.reshape((-1, feature_means.shape[1]))
+
+    graph_features = np.empty((num_graphs, num_clusters, num_sample, graph_means.shape[2]), dtype=float)
+    for i in range(num_graphs):
+        for j in range(num_clusters):
+            graph_features[i, j] = np.random.multivariate_normal(mean=graph_means[i, j, :],
+                                                                 cov=graph_covariances[i, j, :, :],
+                                                                 size=(num_sample,))
+    graph_features = graph_features.reshape((num_graphs, -1, graph_means.shape[2]))
+    print(graph_features.shape)
+    adj = np.zeros((num_graphs, num_nodes, num_nodes), dtype=float)
+    for i in range(num_graphs):
+        for j in range(num_nodes):
+            for k in range(j + 1, num_nodes):
+                if np.dot(graph_features[i, j] - graph_features[i, k], graph_features[i, j] - graph_features[i, k, :]) < threshold:
+                    adj[i, j, k] = adj[i, k, j] = 1
+
+    idx = np.arange(num_nodes)
+    np.random.shuffle(idx)
+    features = features[idx, :]
+    labels = [labels[item] for item in idx]
+    adj = adj[:, idx, :]
+    adj = adj[:, :, idx]
+
+    one_hot_labels = np.zeros((num_nodes, num_clusters))
+    one_hot_labels[np.arange(num_nodes), labels] = 1
+
+    sparse_features = sparse_to_tuple(sp.coo_matrix(features))
+    return features, sparse_features, adj, labels, one_hot_labels
+
+
 def load_ppmi_data(sparsity_threshold):
     with open('./PPMI_dataset/idx_patients.csv') as csv_file:
         rows = csv.reader(csv_file, delimiter=',')
